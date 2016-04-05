@@ -65,7 +65,7 @@ public class RegistroHora {
 	public void setLancado(Boolean lancado) {
 		this.lancado = lancado;
 	}
-	
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -77,7 +77,7 @@ public class RegistroHora {
 		result = prime * result + ((mes == null) ? 0 : mes.hashCode());
 		return result;
 	}
-	
+
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
@@ -114,12 +114,12 @@ public class RegistroHora {
 			return false;
 		return true;
 	}
-	
-	
-	
-	
-	
-	
 
-	
+
+	@Override
+	public String toString() {
+		return getDia() + "/" + getMes() + "/" + getAno()  + "  " + getHoraInicio() + " - " + getHoraFim();
+	}
+
+
 }

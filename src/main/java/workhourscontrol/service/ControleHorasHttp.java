@@ -16,17 +16,23 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.auth.AuthSchemeProvider;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.AuthSchemes;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.impl.auth.BasicSchemeFactory;
+import org.apache.http.impl.auth.DigestSchemeFactory;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -36,10 +42,10 @@ import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.log4j.Logger;
 
-import workhourscontrol.util.DateUtils;
 import workhourscontrol.entity.RegistroHora;
 import workhourscontrol.exception.ControleHorasException;
 import workhourscontrol.strategy.AjusteHorasStrategy;
+import workhourscontrol.util.DateUtils;
 
 public abstract class ControleHorasHttp implements ControleHoras {
 
@@ -57,27 +63,32 @@ public abstract class ControleHorasHttp implements ControleHoras {
 
 	private CloseableHttpClient gerarHttpClient() {
 
-		if (httpClient == null) {
+		HttpClientBuilder builder = HttpClients.custom();
 
-			HttpClientBuilder builder = HttpClients.custom();
+		builder.setDefaultAuthSchemeRegistry(createAuthSchemeProvider());
 
-			if (parametros.isUsarProxy()) {
+		if (parametros.isUsarProxy()) {
 
-				//Definindo rota de acesso ao host
-				DefaultProxyRoutePlanner routePlanner = criarRoutePlanner();
-				builder.setRoutePlanner(routePlanner);
+			//Definindo rota de acesso ao host
+			DefaultProxyRoutePlanner routePlanner = criarRoutePlanner();
+			builder.setRoutePlanner(routePlanner);
 
-				//Definindo autentiação para acesso ao host
-				CredentialsProvider credsProvider = criarCredenciais();
-				builder.setDefaultCredentialsProvider(credsProvider);
+			//Definindo autentiação para acesso ao host
+			CredentialsProvider credsProvider = criarCredenciais();
+			builder.setDefaultCredentialsProvider(credsProvider);
 
-			}
-
-			this.httpClient = builder.build();
 		}
 
-		return httpClient;
+		return  builder.build();
 
+	}
+
+	private Registry<AuthSchemeProvider> createAuthSchemeProvider() {
+		Registry<AuthSchemeProvider> r = RegistryBuilder.<AuthSchemeProvider>create()
+				.register(AuthSchemes.BASIC, new BasicSchemeFactory())
+				.build();
+
+		return r;
 	}
 
 	private void login() throws ControleHorasException {
@@ -99,6 +110,8 @@ public abstract class ControleHorasHttp implements ControleHoras {
 
 		} catch (IOException e) {
 			throw new ControleHorasException("Ocorreu um erro ao efetuar o login.", e);
+		} finally {
+			fecharConexao();
 		}
 	}
 
@@ -157,6 +170,8 @@ public abstract class ControleHorasHttp implements ControleHoras {
 	protected final void registrarHora(RegistroHora registro) throws ControleHorasException {
 
 		try {
+			httpClient = gerarHttpClient();
+
 			HttpPost post = montarHttpPost(montarParametrosRegistroHora(registro), getUrlRegistroHora());
 
 			HttpClientContext localContext = createLocalContext();
@@ -169,6 +184,8 @@ public abstract class ControleHorasHttp implements ControleHoras {
 
 		} catch (IOException | ParseException e) {
 			throw new ControleHorasException("Ocorreu ao registrar hora", e);
+		} finally {
+			fecharConexao();
 		}
 	}
 
@@ -287,6 +304,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 
 			if (httpClient != null) {
 				httpClient.close();
+				httpClient = null;
 			}
 		} catch (IOException e) {
 			// FIXME: tratar melhor exceção
@@ -317,31 +335,37 @@ public abstract class ControleHorasHttp implements ControleHoras {
 
 	public abstract double parseHtml(String html);
 
-	private String obterHtmlServidor() throws URISyntaxException, ClientProtocolException, IOException {
+	private String obterHtmlServidor() throws ControleHorasException {
 
-		// Monta objeto para fazer o get request
-		HttpGet get = montarHttpGet(getParametrosSaldoHoras(), getUrlSaldoHoras());
+		try {
+			// Monta objeto para fazer o get request
+			HttpGet get = montarHttpGet(getParametrosSaldoHoras(), getUrlSaldoHoras());
 
-		// Obtém local context
-		HttpClientContext localContext = createLocalContext();
+			// Obtém local context
+			HttpClientContext localContext = createLocalContext();
 
-		// Adiciona Cookie
-		get.addHeader("Cookie", getCookieHeader(cookieStore));
+			// Adiciona Cookie
+			get.addHeader("Cookie", getCookieHeader(cookieStore));
 
-		// Faz a requisição
-		HttpResponse response = httpClient.execute(get, localContext);
+			// Faz a requisição
+			HttpResponse response = httpClient.execute(get, localContext);
 
+			BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
 
-		BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+			//Extrai html do response
+			StringBuilder htmlResult = new StringBuilder();
+			String line = "";
+			while ((line = rd.readLine()) != null) {
+				htmlResult.append(line);
+			}
 
-		//Extrai html do response
-		StringBuilder htmlResult = new StringBuilder();
-		String line = "";
-		while ((line = rd.readLine()) != null) {
-			htmlResult.append(line);
+			return htmlResult.toString();
+
+		} catch (IOException | URISyntaxException e) {
+			throw new ControleHorasException("Ocorreu um erro ao obter html do servidor", e);
+		} finally {
+			fecharConexao();
 		}
-
-		return htmlResult.toString();
 
 	}
 
