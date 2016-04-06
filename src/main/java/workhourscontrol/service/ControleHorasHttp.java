@@ -348,7 +348,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 			get.addHeader("Cookie", getCookieHeader(cookieStore));
 
 			// Faz a requisição
-			HttpResponse response = httpClient.execute(get, localContext);
+			HttpResponse response = gerarHttpClient().execute(get, localContext);
 
 			BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
 
