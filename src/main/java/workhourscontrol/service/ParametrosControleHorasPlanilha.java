@@ -2,7 +2,7 @@ package workhourscontrol.service;
 
 import java.io.File;
 
-public class ParametrosControleHorasPlanilha {
+public class ParametrosControleHorasPlanilha extends AbstractParametroSControleHoras {
 
 	private File file;
 

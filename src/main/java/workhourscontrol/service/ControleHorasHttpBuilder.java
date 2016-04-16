@@ -11,7 +11,7 @@ public class ControleHorasHttpBuilder implements ControleHorasBuilder{
 
 	public ControleHorasHttpBuilder(ControleHorasHttp controleHoras) {
 		parametros = new ParametrosControleHorasHttp();
-		parametros.setAjusteHoratrategies(new ArrayList<>());
+		parametros.setAjusteHoraStrategies(new ArrayList<>());
 		this.controleHoras = controleHoras;
 	}
 
@@ -35,7 +35,7 @@ public class ControleHorasHttpBuilder implements ControleHorasBuilder{
 	}
 	
 	public ControleHorasHttpBuilder addAjusteHorasStrategy(AjusteHorasStrategy ajusteHorasStrategy) {
-		this.parametros.getAjusteHoratrategies().add(ajusteHorasStrategy);
+		this.parametros.getAjusteHoraStrategies().add(ajusteHorasStrategy);
 		return this;
 	}
 

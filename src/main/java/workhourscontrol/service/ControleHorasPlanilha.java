@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
@@ -20,8 +21,9 @@ import org.apache.poi.xssf.usermodel.XSSFFormulaEvaluator;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import workhourscontrol.entity.RegistroHora;
+import workhourscontrol.exception.ControleHorasException;
 
-public class ControleHorasPlanilha implements ControleHoras {
+public class ControleHorasPlanilha extends ControleHorasBase {
 
 	private Logger logger = Logger.getLogger(ControleHorasPlanilha.class);
 
@@ -31,17 +33,23 @@ public class ControleHorasPlanilha implements ControleHoras {
 	private static final Integer COL_HORA_FIM_MANHA = 7;
 	private static final Integer COL_HORA_INICIO_TARDE = 8;
 	private static final Integer COL_HORA_FIM_TARDE = 9;
-
+	private static final String VALOR_HORA_PATTERN = "\\d{2}:\\d{2}(:\\d2)?";
+	
 	private ParametrosControleHorasPlanilha parametros;
 	private XSSFWorkbook wb;
 
 
+	@Override
+	protected ParametrosControleHorasPlanilha getParametros() {
+		return this.parametros;
+	}
+	
 	public void setParametros(ParametrosControleHorasPlanilha parametros) {
 		this.parametros = parametros;
 	}
 
 	@Override
-	public void registrarHoras(List<RegistroHora> registros) {
+	public void salvarRegistrosDeHoras(List<RegistroHora> registros) {
 		criarWorkbook();
 		Map<String, List<RegistroHora>> mapRegistrosPorDia = registros.stream().collect(Collectors.groupingBy(r -> r.getDia()));
 		registrarHoraDia(mapRegistrosPorDia);
@@ -79,10 +87,24 @@ public class ControleHorasPlanilha implements ControleHoras {
 
 	private void setarValorCelula(String horaInicio, Row row, int posicao) {
 		Cell cell = row.getCell(posicao);
-    	cell.setCellType(Cell.CELL_TYPE_STRING);
-    	cell.setCellValue(horaInicio);
+		if (isNotCellHasValue(cell)) {
+			cell.setCellType(Cell.CELL_TYPE_STRING);
+			cell.setCellValue(horaInicio);
+		}
 	}
 
+	private boolean isNotCellHasValue(Cell cell) {
+		return !isCellHasValue(cell);
+	}
+
+	private boolean isCellHasValue(Cell cell) {
+		return isValorHora(cell.getStringCellValue());
+	}
+
+	private boolean isValorHora(String value) {
+		return Pattern.matches(VALOR_HORA_PATTERN, value);
+	}
+	
 	private Row getRowByDia(String dia) {
 		Sheet sheet = wb.getSheet(SHEET_NAME);
 		return sheet.getRow(ROW_INDEX_START -1 + Integer.parseInt(dia));
@@ -95,25 +117,23 @@ public class ControleHorasPlanilha implements ControleHoras {
 	}
 
 	@Override
-	public void fecharConexao() {
+	public void fecharConexao() throws ControleHorasException{
 
 		try {
-
 			XSSFFormulaEvaluator.evaluateAllFormulaCells(wb);
 			FileOutputStream fileOut = new FileOutputStream(parametros.getFile());
 			wb.write(fileOut);
 			fileOut.close();
 			wb.close();
 		} catch (IOException e) {
-			logger.error("Ocorreu um erro ao fechar conexão com planilha.", e);
-			throw new RuntimeException(e);
+			throw new ControleHorasException("Ocorreu um erro ao fechar conexï¿½o com planilha.", e);
 		}
 
 	}
 
 	@Override
 	public double obterSaldoHoras() {
-		// TODO Não implementado
+		// TODO Nï¿½o implementado
 		return 0;
 	}
 

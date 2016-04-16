@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -19,7 +18,6 @@ import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthSchemeProvider;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.AuthSchemes;
@@ -32,7 +30,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.auth.BasicSchemeFactory;
-import org.apache.http.impl.auth.DigestSchemeFactory;
 import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -44,10 +41,9 @@ import org.apache.log4j.Logger;
 
 import workhourscontrol.entity.RegistroHora;
 import workhourscontrol.exception.ControleHorasException;
-import workhourscontrol.strategy.AjusteHorasStrategy;
 import workhourscontrol.util.DateUtils;
 
-public abstract class ControleHorasHttp implements ControleHoras {
+public abstract class ControleHorasHttp extends ControleHorasBase {
 
 	private Logger logger = Logger.getLogger(ControleHorasHttp.class);
 
@@ -61,6 +57,11 @@ public abstract class ControleHorasHttp implements ControleHoras {
 		this.parametros = parametros;
 	}
 
+	@Override
+	public ParametrosControleHorasHttp getParametros() {
+		return parametros;
+	}
+	
 	private CloseableHttpClient gerarHttpClient() {
 
 		HttpClientBuilder builder = HttpClients.custom();
@@ -73,7 +74,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 			DefaultProxyRoutePlanner routePlanner = criarRoutePlanner();
 			builder.setRoutePlanner(routePlanner);
 
-			//Definindo autentiação para acesso ao host
+			//Definindo autentiaï¿½ï¿½o para acesso ao host
 			CredentialsProvider credsProvider = criarCredenciais();
 			builder.setDefaultCredentialsProvider(credsProvider);
 
@@ -105,7 +106,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 			httpClient.execute(post, localContext);
 
 			if (Objects.isNull(getCookieHeader(cookieStore))) {
-				throw new ControleHorasException("Não houve sucesso na autenticação");
+				throw new ControleHorasException("Nï¿½o houve sucesso na autenticaï¿½ï¿½o");
 			}
 
 		} catch (IOException e) {
@@ -206,29 +207,12 @@ public abstract class ControleHorasHttp implements ControleHoras {
 	public abstract String getUrlRegistroHora();
 
 	@Override
-	public void registrarHoras(List<RegistroHora> registros) throws ControleHorasException {
-		registros = antesDeRegistrar(registros);
-		logarUsuario();
+	protected void salvarRegistrosDeHoras(List<RegistroHora> registros) throws ControleHorasException {
 		registrarHorasIndividualmente(registros);
 	}
 
-	private List<RegistroHora> antesDeRegistrar(List<RegistroHora> registros) {
-		registros = prepararListaRegistros(registros);
-		registros = aplicarStrategies(registros);
-		return registros;
-	}
-
-	private List<RegistroHora> aplicarStrategies(List<RegistroHora> registros) {
-		if (CollectionUtils.isNotEmpty(parametros.getAjusteHoratrategies())) {
-			for (AjusteHorasStrategy strategy : parametros.getAjusteHoratrategies()) {
-				registros = strategy.ajustarRegistros(registros);
-			}
-		}
-		return registros;
-	}
-
-	protected List<RegistroHora> prepararListaRegistros(List<RegistroHora> registros) {
-		return registros;
+	protected void antesDeRegistrar(List<RegistroHora> registros) throws ControleHorasException {
+		logarUsuario();
 	}
 
 	protected void registrarHorasIndividualmente(List<RegistroHora> registros) throws ControleHorasException {
@@ -297,7 +281,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 	}
 
 	@Override
-	public void fecharConexao() {
+	public void fecharConexao() throws ControleHorasException {
 		try {
 
 			this.loggedIn = false;
@@ -307,9 +291,7 @@ public abstract class ControleHorasHttp implements ControleHoras {
 				httpClient = null;
 			}
 		} catch (IOException e) {
-			// FIXME: tratar melhor exceção
-			logger.error("Ocorreu ao fechar httpClient", e);
-			throw new RuntimeException(e);
+			throw new ControleHorasException("Ocorreu ao fechar httpClient", e);
 		}
 
 	}
@@ -318,13 +300,13 @@ public abstract class ControleHorasHttp implements ControleHoras {
 	public double obterSaldoHoras() throws ControleHorasException {
 
 		try {
-			// Usuário deve estar logado
+			// Usuï¿½rio deve estar logado
 			logarUsuario();
 
-			// Vai no servidor para obter página que contém o desejado
+			// Vai no servidor para obter pï¿½gina que contï¿½m o desejado
 			String html = obterHtmlServidor();
 
-			// Faz o parse da página para obter o resultado
+			// Faz o parse da pï¿½gina para obter o resultado
 			return parseHtml(html);
 
 		} catch (Throwable e) {
@@ -341,13 +323,13 @@ public abstract class ControleHorasHttp implements ControleHoras {
 			// Monta objeto para fazer o get request
 			HttpGet get = montarHttpGet(getParametrosSaldoHoras(), getUrlSaldoHoras());
 
-			// Obtém local context
+			// Obtï¿½m local context
 			HttpClientContext localContext = createLocalContext();
 
 			// Adiciona Cookie
 			get.addHeader("Cookie", getCookieHeader(cookieStore));
 
-			// Faz a requisição
+			// Faz a requisiï¿½ï¿½o
 			HttpResponse response = gerarHttpClient().execute(get, localContext);
 
 			BufferedReader rd = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
